@@ -7,8 +7,6 @@ import {
   State as GestureState,
 } from 'react-native-gesture-handler'
 
-const WIDTH = Dimensions.get('window').width
-const HEIGHT = Dimensions.get('window').height
 type Props = {
   /**
    * Points for snapping of bottom sheet component. They define distance from bottom of the screen.
@@ -125,6 +123,7 @@ type State = {
 }
 
 const { height: screenHeight } = Dimensions.get('window')
+const { width: screenWidth } = Dimensions.get('window')
 
 const P = <T extends any>(android: T, ios: T): T =>
   Platform.OS === 'ios' ? ios : android
@@ -161,6 +160,7 @@ const {
   onChange,
   block,
   eq,
+  interpolate,
   greaterOrEq,
   sqrt,
   not,
@@ -178,7 +178,6 @@ const {
   diff,
   multiply,
   clockRunning,
-  interpolate,
   startClock,
   stopClock,
   decay,
@@ -689,23 +688,18 @@ export default class BottomSheetBehavior extends React.Component<Props, State> {
       val: number
       ind: number
     }> = props.snapPoints
-      .map(
-        (
-          s: number | string,
-          i: number
-        ): {
-          val: number
-          ind: number
-        } => {
-          if (typeof s === 'number') {
-            return { val: s, ind: i }
-          } else if (typeof s === 'string') {
-            return { val: BottomSheetBehavior.renumber(s), ind: i }
-          }
-
-          throw new Error(`Invalid type for value ${s}: ${typeof s}`)
+      .map((s: number | string, i: number): {
+        val: number
+        ind: number
+      } => {
+        if (typeof s === 'number') {
+          return { val: s, ind: i }
+        } else if (typeof s === 'string') {
+          return { val: BottomSheetBehavior.renumber(s), ind: i }
         }
-      )
+
+        throw new Error(`Invalid type for value ${s}: ${typeof s}`)
+      })
       .sort(({ val: a }, { val: b }) => b - a)
     if (state && state.snapPoints) {
       state.snapPoints.forEach(
@@ -745,28 +739,37 @@ export default class BottomSheetBehavior extends React.Component<Props, State> {
   render() {
     const { borderRadius } = this.props
 
-    const my_diff = divide(
+    const pctOpen = divide(
       this.translateMaster,
       this.state.snapPoints[this.state.snapPoints.length - 1]
     )
 
-    let animtedWidth = interpolate(this.translateMaster, {
-      inputRange: [HEIGHT * 0.4, HEIGHT * 0.5],
-      outputRange: [WIDTH, 0],
-    })
+    const subHeaderHeight = this.props.subHeaderHeight
+      ? this.props.subHeaderHeight
+      : 50
 
-    let animatedOpacity = interpolate(this.translateMaster, {
-      inputRange: [0, HEIGHT / 2],
-      outputRange: [0.7, 0],
+    let animatedHeight = interpolate(pctOpen, {
+      inputRange: [0.75, 1],
+      outputRange: [0, subHeaderHeight],
       extrapolate: Animated.Extrapolate.CLAMP,
     })
 
-    const anim_height = this.props.subcontentHeight
-      ? this.props.subcontentHeight
-      : 50
-    let animatedHeight = interpolate(my_diff, {
-      inputRange: [0.25, 1],
-      outputRange: [anim_height, 0],
+    let animatedOpacity = interpolate(pctOpen, {
+      inputRange: [0.9, 1],
+      outputRange: [0, 1],
+      extrapolate: Animated.Extrapolate.CLAMP,
+    })
+
+    let animatedTopOpacity = interpolate(pctOpen, {
+      inputRange: [0, 1],
+      outputRange: [0.8, 0],
+      extrapolate: Animated.Extrapolate.CLAMP,
+    })
+
+    let animatedTopWidth = interpolate(pctOpen, {
+      inputRange: [0.9, 1],
+      outputRange: [screenWidth, 0],
+      extrapolate: Animated.Extrapolate.CLAMP,
     })
 
     return (
@@ -774,28 +777,35 @@ export default class BottomSheetBehavior extends React.Component<Props, State> {
         <Animated.View
           style={{
             height: '100%',
-            opacity: cond(animatedOpacity, animatedOpacity, 0),
             backgroundColor: 'black',
-            width: cond(animtedWidth, animtedWidth, 0),
+            opacity: cond(animatedTopOpacity, animatedTopOpacity, 0),
+            width: cond(animatedTopWidth, animatedTopWidth, 0),
             position: 'absolute',
           }}
           onLayout={this.handleFullHeader}
-        />
+        >
+          {this.props.renderMasterContent && this.props.renderMasterContent()}
+        </Animated.View>
         <Animated.View
-          style={{
-            width: '100%',
-            position: 'absolute',
-            zIndex: 100,
-            opacity: cond(this.height, 1, 0),
-            transform: [
-              {
-                translateY: this.translateMaster,
-              },
-              {
-                translateY: sub(this.height, this.state.initSnap) as any,
-              },
-            ],
-          }}
+          style={[
+            this.props.backgroundColor
+              ? { backgroundColor: this.props.backgroundColor }
+              : {},
+            {
+              width: '100%',
+              position: 'absolute',
+              zIndex: 100,
+              opacity: cond(this.height, 1, 0),
+              transform: [
+                {
+                  translateY: this.translateMaster,
+                },
+                {
+                  translateY: sub(this.height, this.state.initSnap) as any,
+                },
+              ],
+            },
+          ]}
         >
           <PanGestureHandler
             enabled={
@@ -817,6 +827,21 @@ export default class BottomSheetBehavior extends React.Component<Props, State> {
               {this.props.renderHeader && this.props.renderHeader()}
             </Animated.View>
           </PanGestureHandler>
+          {this.props.renderSubheader && (
+            <Animated.View
+              style={{
+                overflow: 'hidden',
+
+                zIndex: 101,
+                backgroundColor: '#040D14',
+                height: animatedHeight,
+              }}
+            >
+              <Animated.View style={{ opacity: animatedOpacity }}>
+                {this.props.renderSubheader()}
+              </Animated.View>
+            </Animated.View>
+          )}
           <View
             style={
               this.props.enabledInnerScrolling && {
@@ -857,21 +882,6 @@ export default class BottomSheetBehavior extends React.Component<Props, State> {
                     onLayout={this.handleLayoutContent}
                   >
                     {this.props.renderContent && this.props.renderContent()}
-
-                    <Animated.View
-                      style={[
-                        {
-                          width: '100%',
-                          height: animatedHeight,
-                        },
-                        this.props.subContentStyle,
-                      ]}
-                    >
-                      {this.props.renderSubcontent &&
-                        this.props.renderSubcontent()}
-                    </Animated.View>
-
-                    {this.props.renderFooter && this.props.renderFooter()}
                   </Animated.View>
                 </TapGestureHandler>
               </Animated.View>

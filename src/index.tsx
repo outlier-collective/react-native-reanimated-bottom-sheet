@@ -47,6 +47,11 @@ type Props = {
   enabledBottomClamp?: boolean
 
   /**
+   * When true, sheet will grows up from bottom to initial snapPoint.
+   */
+  enabledBottomInitialAnimation?: boolean
+
+  /**
    * If false blocks snapping using snapTo method. Defaults to true.
    */
   enabledManualSnapping?: boolean
@@ -122,8 +127,7 @@ type State = {
   heightOfHeaderAnimated: Animated.Value<number>
 }
 
-const { height: screenHeight } = Dimensions.get('window')
-const { width: screenWidth } = Dimensions.get('window')
+const { height: screenHeight, width: screenWidth } = Dimensions.get('window')
 
 const P = <T extends any>(android: T, ios: T): T =>
   Platform.OS === 'ios' ? ios : android
@@ -160,7 +164,6 @@ const {
   onChange,
   block,
   eq,
-  interpolate,
   greaterOrEq,
   sqrt,
   not,
@@ -177,6 +180,7 @@ const {
   event,
   diff,
   multiply,
+  interpolate,
   clockRunning,
   startClock,
   stopClock,
@@ -295,6 +299,7 @@ export default class BottomSheetBehavior extends React.Component<Props, State> {
     enabledImperativeSnapping: true,
     enabledGestureInteraction: true,
     enabledBottomClamp: false,
+    enabledBottomInitialAnimation: false,
     enabledHeaderGestureInteraction: true,
     enabledContentGestureInteraction: true,
     enabledContentTapInteraction: true,
@@ -312,7 +317,7 @@ export default class BottomSheetBehavior extends React.Component<Props, State> {
   private panState = new Value(0)
   private tapState = new Value(0)
   private velocity = new Value(0)
-  private panMasterState = new Value(GestureState.END)
+  private panMasterState: Animated.Value<number> = new Value(GestureState.END)
   private masterVelocity = new Value(0)
   private isManuallySetValue: Animated.Value<number> = new Value(0)
   private manuallySetValue = new Value(0)
@@ -341,10 +346,19 @@ export default class BottomSheetBehavior extends React.Component<Props, State> {
     this.state = BottomSheetBehavior.getDerivedStateFromProps(props, undefined)
 
     const { snapPoints, init } = this.state
-    const middlesOfSnapPoints: Animated.Node<number>[] = []
+    const middlesOfSnapPoints: [
+      Animated.Node<number>,
+      Animated.Node<number>
+    ][] = []
+
     for (let i = 1; i < snapPoints.length; i++) {
-      middlesOfSnapPoints.push(divide(add(snapPoints[i - 1], snapPoints[i]), 2))
+      const tuple: [Animated.Node<number>, Animated.Node<number>] = [
+        add(snapPoints[i - 1], 10),
+        sub(snapPoints[i], 25),
+      ]
+      middlesOfSnapPoints.push(tuple)
     }
+
     const masterOffseted = new Value(init)
     // destination point is a approximation of movement if finger released
     const tossForMaster =
@@ -356,14 +370,35 @@ export default class BottomSheetBehavior extends React.Component<Props, State> {
       masterOffseted,
       multiply(tossForMaster, this.masterVelocity)
     )
+
+    const positive = greaterOrEq(
+      multiply(tossForMaster, this.masterVelocity),
+      0
+    )
     // method for generating condition for finding the nearest snap point
     const currentSnapPoint = (i = 0): Animated.Node<number> =>
       i + 1 === snapPoints.length
         ? snapPoints[i]
         : cond(
-            lessThan(destinationPoint, middlesOfSnapPoints[i]),
-            snapPoints[i],
-            currentSnapPoint(i + 1)
+            positive,
+            cond(
+              greaterThan(destinationPoint, middlesOfSnapPoints[i][0]),
+              cond(
+                lessThan(destinationPoint, middlesOfSnapPoints[i][1]),
+                snapPoints[i + 1],
+                currentSnapPoint(i + 1)
+              ),
+              snapPoints[i]
+            ),
+            cond(
+              greaterThan(destinationPoint, middlesOfSnapPoints[i][1]),
+              cond(
+                lessThan(destinationPoint, middlesOfSnapPoints[i][0]),
+                snapPoints[i + 1],
+                currentSnapPoint(i + 1)
+              ),
+              snapPoints[i]
+            )
           )
     // current snap point desired
     this.snapPoint = currentSnapPoint()
@@ -379,7 +414,8 @@ export default class BottomSheetBehavior extends React.Component<Props, State> {
       cond(
         or(
           eq(this.panMasterState, GestureState.END),
-          eq(this.panMasterState, GestureState.CANCELLED)
+          eq(this.panMasterState, GestureState.CANCELLED),
+          eq(this.panMasterState, GestureState.FAILED)
         ),
         [
           set(prevMasterDrag, 0),
@@ -399,7 +435,8 @@ export default class BottomSheetBehavior extends React.Component<Props, State> {
                     this.snapPoint
                   ),
                   wasRun,
-                  this.isManuallySetValue
+                  this.isManuallySetValue,
+                  this.masterVelocity
                 )
               ),
               set(this.isManuallySetValue, 0),
@@ -469,7 +506,8 @@ export default class BottomSheetBehavior extends React.Component<Props, State> {
     velocity: Animated.Node<number>,
     dest: Animated.Node<number>,
     wasRun: Animated.Value<number>,
-    isManuallySet: Animated.Node<number> | number = 0
+    isManuallySet: Animated.Node<number> | number,
+    valueToBeZeroed: Animated.Value<number>
   ) {
     const state = {
       finished: new Value(0),
@@ -499,7 +537,7 @@ export default class BottomSheetBehavior extends React.Component<Props, State> {
         cond(defined(wasRun), set(wasRun, 1)),
       ]),
       spring(clock, state, config),
-      cond(state.finished, stopClock(clock)),
+      cond(state.finished, [stopClock(clock), set(valueToBeZeroed, 0)]),
       state.position,
     ]
   }
@@ -545,8 +583,8 @@ export default class BottomSheetBehavior extends React.Component<Props, State> {
     const limitedVal = new Value(0)
     const diffPres = new Value(0)
     const flagWasRunSpring = new Value(0)
-    const justEndedIfEnded = new Value(1)
-    const wasEndedMasterAfterInner = new Value(1)
+    const justEndedIfEnded: Animated.Value<number> = new Value(1)
+    const wasEndedMasterAfterInner: Animated.Value<number> = new Value(1)
     const prevMaster = new Value(1)
     const prevState = new Value(0)
     const rev = new Value(0)
@@ -585,7 +623,7 @@ export default class BottomSheetBehavior extends React.Component<Props, State> {
           cond(greaterThan(masterOffseted, 0), [set(limitedVal, 0)]),
           cond(
             not(eq(this.panState, GestureState.END)),
-            set(justEndedIfEnded, 0)
+            set(justEndedIfEnded, 1)
           ),
           cond(
             or(
@@ -624,7 +662,9 @@ export default class BottomSheetBehavior extends React.Component<Props, State> {
                   masterOffseted,
                   diff(val),
                   this.snapPoint,
-                  wasRunMaster
+                  wasRunMaster,
+                  0,
+                  this.masterVelocity
                 )
               ),
               set(this.masterVelocity, 0),
@@ -722,10 +762,19 @@ export default class BottomSheetBehavior extends React.Component<Props, State> {
 
     const { initialSnap } = props
 
+    let init =
+      sortedPropsSnapPoints[0].val -
+      sortedPropsSnapPoints[propsToNewIndices[initialSnap]].val
+
+    if (props.enabledBottomInitialAnimation) {
+      init =
+        sortedPropsSnapPoints[
+          sortedPropsSnapPoints.length - 1 - propsToNewIndices[initialSnap]
+        ].val
+    }
+
     return {
-      init:
-        sortedPropsSnapPoints[0].val -
-        sortedPropsSnapPoints[propsToNewIndices[initialSnap]].val,
+      init,
       propsToNewIndices,
       heightOfHeaderAnimated:
         (state && state.heightOfHeaderAnimated) || new Value(0),
@@ -736,76 +785,64 @@ export default class BottomSheetBehavior extends React.Component<Props, State> {
     }
   }
 
-  render() {
-    const { borderRadius } = this.props
+  renderTopView() {
+    const { renderTopView } = this.props
+    const { snapPoints } = this.state
 
     const pctOpen = divide(
       this.translateMaster,
-      this.state.snapPoints[this.state.snapPoints.length - 1]
+      snapPoints[snapPoints.length - 1]
     )
 
-    const subHeaderHeight = this.props.subHeaderHeight
-      ? this.props.subHeaderHeight
-      : 50
-
-    let animatedHeight = interpolate(pctOpen, {
-      inputRange: [0.75, 1],
-      outputRange: [0, subHeaderHeight],
-      extrapolate: Animated.Extrapolate.CLAMP,
-    })
-
-    let animatedOpacity = interpolate(pctOpen, {
-      inputRange: [0.9, 1],
-      outputRange: [0, 1],
-      extrapolate: Animated.Extrapolate.CLAMP,
-    })
-
-    let animatedTopOpacity = interpolate(pctOpen, {
-      inputRange: [0, 1],
-      outputRange: [0.8, 0],
-      extrapolate: Animated.Extrapolate.CLAMP,
-    })
-
-    let animatedTopWidth = interpolate(pctOpen, {
+    const animatedWidth = interpolate(pctOpen, {
       inputRange: [0.9, 1],
       outputRange: [screenWidth, 0],
       extrapolate: Animated.Extrapolate.CLAMP,
     })
 
+    const animatedOpacity = interpolate(pctOpen, {
+      inputRange: [0.1, 1],
+      outputRange: [0.8, 0],
+      extrapolate: Animated.Extrapolate.CLAMP,
+    })
+
+    return (
+      <Animated.View
+        style={{
+          height: '100%',
+          opacity: animatedOpacity,
+          width: animatedWidth,
+          backgroundColor: 'black',
+          position: 'absolute',
+        }}
+        onLayout={this.handleFullHeader}
+      >
+        {renderTopView && renderTopView()}
+      </Animated.View>
+    )
+  }
+
+  render() {
+    const { borderRadius } = this.props
+
     return (
       <React.Fragment>
+        {this.renderTopView()}
         <Animated.View
           style={{
-            height: '100%',
-            backgroundColor: 'black',
-            opacity: cond(animatedTopOpacity, animatedTopOpacity, 0),
-            width: cond(animatedTopWidth, animatedTopWidth, 0),
+            width: '100%',
             position: 'absolute',
+            zIndex: 100,
+            opacity: cond(this.height, 1, 0),
+            transform: [
+              {
+                translateY: this.translateMaster,
+              },
+              {
+                translateY: sub(this.height, this.state.initSnap) as any,
+              },
+            ],
           }}
-          onLayout={this.handleFullHeader}
-        >
-          {this.props.renderMasterContent && this.props.renderMasterContent()}
-        </Animated.View>
-        <Animated.View
-          style={[
-            this.props.backgroundColor
-              ? { backgroundColor: this.props.backgroundColor }
-              : {},
-            {
-              width: '100%',
-              position: 'absolute',
-              zIndex: 100,
-              opacity: cond(this.height, 1, 0),
-              transform: [
-                {
-                  translateY: this.translateMaster,
-                },
-                {
-                  translateY: sub(this.height, this.state.initSnap) as any,
-                },
-              ],
-            },
-          ]}
         >
           <PanGestureHandler
             enabled={
@@ -827,21 +864,6 @@ export default class BottomSheetBehavior extends React.Component<Props, State> {
               {this.props.renderHeader && this.props.renderHeader()}
             </Animated.View>
           </PanGestureHandler>
-          {this.props.renderSubheader && (
-            <Animated.View
-              style={{
-                overflow: 'hidden',
-
-                zIndex: 101,
-                backgroundColor: '#040D14',
-                height: animatedHeight,
-              }}
-            >
-              <Animated.View style={{ opacity: animatedOpacity }}>
-                {this.props.renderSubheader()}
-              </Animated.View>
-            </Animated.View>
-          )}
           <View
             style={
               this.props.enabledInnerScrolling && {

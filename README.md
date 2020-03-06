@@ -58,7 +58,7 @@ class Example extends React.Component {
 
 | name                      | required | default | description |
 | ------------------------- | -------- | ------- | ------------|
-| snapPoints                | yes      |         | E.g. `[300, 200, 0]`. Points for snapping of bottom sheet coomponent. They define distance from bottom of the screen. Might be number or percent (as string e.g. `'20%'`) for points or percents of screen height from bottom. |
+| snapPoints                | yes      |         | E.g. `[300, 200, 0]`. Points for snapping of bottom sheet coomponent. They define distance from bottom of the screen. Might be number or percent (as string e.g. `'20%'`) for points or percents of screen height from bottom. Note: Array values must be in descending order. |
 | initialSnap               | no       |    0    | Determines initial snap point of bottom sheet. The value is the index from snapPoints. |
 | renderContent             | no       |         | Method for rendering scrollable content of bottom sheet. |
 | renderHeader              | no       |         | Method for rendering non-scrollable header of bottom sheet. |
@@ -67,7 +67,8 @@ class Example extends React.Component {
 | enabledContentGestureInteraction | no       | `true`  | Defines if bottom sheet content could be scrollable by gesture. |
 | enabledContentTapInteraction | no       | `true`  | Defines whether bottom sheet content could be tapped. |
 | enabledManualSnapping     | no       | `true`  | If `false` blocks snapping using `snapTo` method. |
-| enabledBottomClamp        | no       | `false` | If `true` block movement is clamped from bottom to minimal snappoint. |
+| enabledBottomClamp        | no       | `false` | If `true` block movement is clamped from bottom to minimal snapPoint. |
+| enabledBottomInitialAnimation        | no       | `false` | If `true` sheet will grows up from bottom to initial snapPoint. |
 | enabledInnerScrolling     | no       | `true`  | Defines whether it's possible to scroll inner content of bottom sheet. |
 | callbackNode              | no       |         | `reanimated` node which holds position of bottom sheet, where `0` it the highest snap point and `1` is the lowest. |
 | contentPosition           | no       |         | `reanimated` node which holds position of bottom sheet's content (in dp) |

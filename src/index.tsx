@@ -1,3 +1,5 @@
+/* tslint:disable */
+
 import * as React from 'react'
 import { Dimensions, Platform, View, LayoutChangeEvent } from 'react-native'
 import Animated from 'react-native-reanimated'
@@ -728,18 +730,23 @@ export default class BottomSheetBehavior extends React.Component<Props, State> {
       val: number
       ind: number
     }> = props.snapPoints
-      .map((s: number | string, i: number): {
-        val: number
-        ind: number
-      } => {
-        if (typeof s === 'number') {
-          return { val: s, ind: i }
-        } else if (typeof s === 'string') {
-          return { val: BottomSheetBehavior.renumber(s), ind: i }
-        }
+      .map(
+        (
+          s: number | string,
+          i: number
+        ): {
+          val: number
+          ind: number
+        } => {
+          if (typeof s === 'number') {
+            return { val: s, ind: i }
+          } else if (typeof s === 'string') {
+            return { val: BottomSheetBehavior.renumber(s), ind: i }
+          }
 
-        throw new Error(`Invalid type for value ${s}: ${typeof s}`)
-      })
+          throw new Error(`Invalid type for value ${s}: ${typeof s}`)
+        }
+      )
       .sort(({ val: a }, { val: b }) => b - a)
     if (state && state.snapPoints) {
       state.snapPoints.forEach(

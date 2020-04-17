@@ -127,7 +127,7 @@ type State = {
   heightOfHeaderAnimated: Animated.Value<number>
 }
 
-const { height: screenHeight } = Dimensions.get('window')
+const { height: screenHeight, width: screenWidth } = Dimensions.get('window')
 
 const P = <T extends any>(android: T, ios: T): T =>
   Platform.OS === 'ios' ? ios : android
@@ -161,6 +161,7 @@ const {
 const {
   set,
   cond,
+  interpolate,
   onChange,
   block,
   eq,
@@ -728,23 +729,18 @@ export default class BottomSheetBehavior extends React.Component<Props, State> {
       val: number
       ind: number
     }> = props.snapPoints
-      .map(
-        (
-          s: number | string,
-          i: number
-        ): {
-          val: number
-          ind: number
-        } => {
-          if (typeof s === 'number') {
-            return { val: s, ind: i }
-          } else if (typeof s === 'string') {
-            return { val: BottomSheetBehavior.renumber(s), ind: i }
-          }
-
-          throw new Error(`Invalid type for value ${s}: ${typeof s}`)
+      .map((s: number | string, i: number): {
+        val: number
+        ind: number
+      } => {
+        if (typeof s === 'number') {
+          return { val: s, ind: i }
+        } else if (typeof s === 'string') {
+          return { val: BottomSheetBehavior.renumber(s), ind: i }
         }
-      )
+
+        throw new Error(`Invalid type for value ${s}: ${typeof s}`)
+      })
       .sort(({ val: a }, { val: b }) => b - a)
     if (state && state.snapPoints) {
       state.snapPoints.forEach(
@@ -758,7 +754,7 @@ export default class BottomSheetBehavior extends React.Component<Props, State> {
       snapPoints = state.snapPoints
     } else {
       snapPoints = sortedPropsSnapPoints.map(
-        p => new Value(sortedPropsSnapPoints[0].val - p.val)
+        (p) => new Value(sortedPropsSnapPoints[0].val - p.val)
       )
     }
 
@@ -790,18 +786,48 @@ export default class BottomSheetBehavior extends React.Component<Props, State> {
     }
   }
 
+  renderTopView() {
+    const { renderTopView } = this.props
+    const { snapPoints } = this.state
+
+    const pctOpen = divide(
+      this.translateMaster,
+      snapPoints[snapPoints.length - 1]
+    )
+
+    const animatedWidth = interpolate(pctOpen, {
+      inputRange: [0.9, 1],
+      outputRange: [screenWidth, 0],
+      extrapolate: Animated.Extrapolate.CLAMP,
+    })
+
+    const animatedOpacity = interpolate(pctOpen, {
+      inputRange: [0.1, 1],
+      outputRange: [0.8, 0],
+      extrapolate: Animated.Extrapolate.CLAMP,
+    })
+
+    return (
+      <Animated.View
+        style={{
+          height: '100%',
+          opacity: animatedOpacity,
+          width: animatedWidth,
+          backgroundColor: 'black',
+          position: 'absolute',
+        }}
+        onLayout={this.handleFullHeader}
+      >
+        {renderTopView && renderTopView()}
+      </Animated.View>
+    )
+  }
+
   render() {
     const { borderRadius } = this.props
     return (
       <React.Fragment>
-        <Animated.View
-          style={{
-            height: '100%',
-            width: 0,
-            position: 'absolute',
-          }}
-          onLayout={this.handleFullHeader}
-        />
+        {this.renderTopView()}
         <Animated.View
           style={{
             width: '100%',

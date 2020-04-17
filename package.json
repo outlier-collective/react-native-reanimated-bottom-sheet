@@ -10,7 +10,8 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "lint": "eslint --ext .js,.ts,.tsx .",
     "typescript": "tsc --noEmit",
-    "release": "release-it"
+    "release": "release-it",
+    "prepare": "bob build"
   },
   "keywords": [
     "react-native",
@@ -60,7 +61,10 @@
     "typescript": "^3.4.5"
   },
   "husky": {
-    "hooks": {}
+    "hooks": {
+      "pre-commit": "yarn lint && yarn typescript",
+      "commit-msg": "commitlint -E HUSKY_GIT_PARAMS"
+    }
   },
   "@react-native-community/bob": {
     "source": "src",

@@ -1,5 +1,3 @@
-/* tslint:disable */
-
 import * as React from 'react'
 import { Dimensions, Platform, View, LayoutChangeEvent } from 'react-native'
 import Animated from 'react-native-reanimated'
@@ -129,7 +127,7 @@ type State = {
   heightOfHeaderAnimated: Animated.Value<number>
 }
 
-const { height: screenHeight, width: screenWidth } = Dimensions.get('window')
+const { height: screenHeight } = Dimensions.get('window')
 
 const P = <T extends any>(android: T, ios: T): T =>
   Platform.OS === 'ios' ? ios : android
@@ -182,7 +180,6 @@ const {
   event,
   diff,
   multiply,
-  interpolate,
   clockRunning,
   startClock,
   stopClock,
@@ -625,7 +622,7 @@ export default class BottomSheetBehavior extends React.Component<Props, State> {
           cond(greaterThan(masterOffseted, 0), [set(limitedVal, 0)]),
           cond(
             not(eq(this.panState, GestureState.END)),
-            set(justEndedIfEnded, 1)
+            set(justEndedIfEnded, 0)
           ),
           cond(
             or(
@@ -686,11 +683,12 @@ export default class BottomSheetBehavior extends React.Component<Props, State> {
     if (!this.props.enabledImperativeSnapping) {
       return
     }
+
+    this.isManuallySetValue.setValue(1)
     this.manuallySetValue.setValue(
       // @ts-ignore
       this.state.snapPoints[this.state.propsToNewIndices[index]]
     )
-    this.isManuallySetValue.setValue(1)
   }
 
   private height: Animated.Value<number> = new Value(0)
@@ -792,49 +790,18 @@ export default class BottomSheetBehavior extends React.Component<Props, State> {
     }
   }
 
-  renderTopView() {
-    const { renderTopView } = this.props
-    const { snapPoints } = this.state
-
-    const pctOpen = divide(
-      this.translateMaster,
-      snapPoints[snapPoints.length - 1]
-    )
-
-    const animatedWidth = interpolate(pctOpen, {
-      inputRange: [0.9, 1],
-      outputRange: [screenWidth, 0],
-      extrapolate: Animated.Extrapolate.CLAMP,
-    })
-
-    const animatedOpacity = interpolate(pctOpen, {
-      inputRange: [0.1, 1],
-      outputRange: [0.8, 0],
-      extrapolate: Animated.Extrapolate.CLAMP,
-    })
-
-    return (
-      <Animated.View
-        style={{
-          height: '100%',
-          opacity: animatedOpacity,
-          width: animatedWidth,
-          backgroundColor: 'black',
-          position: 'absolute',
-        }}
-        onLayout={this.handleFullHeader}
-      >
-        {renderTopView && renderTopView()}
-      </Animated.View>
-    )
-  }
-
   render() {
     const { borderRadius } = this.props
-
     return (
       <React.Fragment>
-        {this.renderTopView()}
+        <Animated.View
+          style={{
+            height: '100%',
+            width: 0,
+            position: 'absolute',
+          }}
+          onLayout={this.handleFullHeader}
+        />
         <Animated.View
           style={{
             width: '100%',

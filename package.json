@@ -72,7 +72,6 @@
     "targets": [
       "commonjs",
       "module",
-      "typescript"
     ]
   }
 }

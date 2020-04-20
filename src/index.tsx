@@ -796,14 +796,14 @@ export default class BottomSheetBehavior extends React.Component<Props, State> {
     )
 
     const animatedWidth = interpolate(pctOpen, {
-      inputRange: [0.9, 1],
+      inputRange: [0.975, 1],
       outputRange: [screenWidth, 0],
       extrapolate: Animated.Extrapolate.CLAMP,
     })
 
     const animatedOpacity = interpolate(pctOpen, {
       inputRange: [0.1, 1],
-      outputRange: [0.8, 0],
+      outputRange: [0.7, 0],
       extrapolate: Animated.Extrapolate.CLAMP,
     })
 
@@ -824,7 +824,8 @@ export default class BottomSheetBehavior extends React.Component<Props, State> {
   }
 
   render() {
-    const { borderRadius } = this.props
+    const { scrollY, borderRadius } = this.props
+    const { snapPoints } = this.state
     return (
       <React.Fragment>
         {this.renderTopView()}
@@ -840,6 +841,17 @@ export default class BottomSheetBehavior extends React.Component<Props, State> {
               },
               {
                 translateY: sub(this.height, this.state.initSnap) as any,
+              },
+              {
+                translateY: scrollY
+                  ? multiply(
+                      scrollY,
+                      divide(
+                        this.translateMaster,
+                        snapPoints[snapPoints.length - 1]
+                      )
+                    )
+                  : 0,
               },
             ],
           }}

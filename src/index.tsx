@@ -1,12 +1,18 @@
 import * as React from 'react'
-import { Dimensions, Platform, View, LayoutChangeEvent } from 'react-native'
+import {
+  Dimensions,
+  Platform,
+  View,
+  LayoutChangeEvent,
+  Easing,
+} from 'react-native'
 import Animated from 'react-native-reanimated'
 import {
   PanGestureHandler,
   TapGestureHandler,
   State as GestureState,
 } from 'react-native-gesture-handler'
-
+import { timing, loop } from 'react-native-redash'
 type Props = {
   /**
    * Points for snapping of bottom sheet component. They define distance from bottom of the screen.
@@ -300,6 +306,8 @@ export default class BottomSheetBehavior extends React.Component<Props, State> {
     enabledGestureInteraction: true,
     enabledBottomClamp: false,
     enabledBottomInitialAnimation: false,
+    scrollDuration: 200,
+    scrollHeight: 0,
     enabledHeaderGestureInteraction: true,
     enabledContentGestureInteraction: true,
     enabledContentTapInteraction: true,
@@ -337,13 +345,20 @@ export default class BottomSheetBehavior extends React.Component<Props, State> {
   private onCloseStartValue: Animated.Value<number> = new Value(1)
   private onCloseEndValue: Animated.Value<number> = new Value(0)
 
+  private didPopDown: Animated.Value<number> = new Value(0)
+  private lastScrollValue: Animated.Value<number> = new Value(0)
+  private scrollClock = new Clock()
+
   constructor(props: Props) {
     super(props)
 
     this.panRef = props.innerGestureHandlerRefs[0]
     this.master = props.innerGestureHandlerRefs[1]
+
     this.tapRef = props.innerGestureHandlerRefs[2]
     this.state = BottomSheetBehavior.getDerivedStateFromProps(props, undefined)
+
+    this.popDownValue = new Value(0)
 
     const { snapPoints, init } = this.state
     const middlesOfSnapPoints: [
@@ -823,9 +838,25 @@ export default class BottomSheetBehavior extends React.Component<Props, State> {
     )
   }
 
+  // call([], () => {
+  //   console.log('HEY')
+  // })
+
+  // function runDecay(
+  //   clock: Animated.Clock,
+  //   value: Animated.Node<number>,
+  //   velocity: Animated.Node<number>,
+  //   wasStartedFromBegin: Animated.Value<number>
+  // ) {
   render() {
-    const { scrollY, borderRadius } = this.props
+    const { scrollY, scrollDuration, scrollHeight, borderRadius } = this.props
     const { snapPoints } = this.state
+
+    const scrollTranslate = Animated.interpolate(this.popDownValue, {
+      inputRange: [0, 1],
+      outputRange: [0, scrollHeight],
+    })
+
     return (
       <React.Fragment>
         {this.renderTopView()}
@@ -842,20 +873,53 @@ export default class BottomSheetBehavior extends React.Component<Props, State> {
               {
                 translateY: sub(this.height, this.state.initSnap) as any,
               },
-              {
-                translateY: scrollY
-                  ? multiply(
-                      scrollY,
-                      divide(
-                        this.translateMaster,
-                        snapPoints[snapPoints.length - 1]
-                      )
-                    )
-                  : 0,
-              },
+              scrollY && { translateY: scrollTranslate },
             ],
           }}
         >
+          {scrollY && (
+            <Animated.Code
+              exec={onChange(scrollY, [
+                cond(
+                  and(
+                    greaterOrEq(scrollY, this.lastScrollValue),
+                    and(
+                      eq(this.didPopDown, 0),
+                      greaterOrEq(this.lastScrollValue, 0)
+                    )
+                  ),
+                  [
+                    call([], () => {
+                      Animated.timing(this.popDownValue, {
+                        toValue: 1,
+                        duration: scrollDuration,
+                        easing: Easing.linear,
+                      }).start()
+                    }),
+                    set(this.didPopDown, 1),
+                  ]
+                ),
+                cond(
+                  and(
+                    greaterOrEq(this.lastScrollValue, scrollY),
+                    eq(this.didPopDown, 1)
+                  ),
+                  [
+                    set(this.didPopDown, 0),
+                    call([], () => {
+                      Animated.timing(this.popDownValue, {
+                        toValue: 0,
+                        duration: scrollDuration,
+                        easing: Easing.linear,
+                      }).start()
+                    }),
+                  ]
+                ),
+                set(this.lastScrollValue, scrollY),
+              ])}
+            />
+          )}
+
           <PanGestureHandler
             enabled={
               this.props.enabledGestureInteraction &&

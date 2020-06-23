@@ -333,7 +333,8 @@ export default class BottomSheetBehavior extends React.Component<Props, State> {
   private preventDecaying: Animated.Value<number> = new Value(0)
   private dragMasterY = new Value(0)
   private dragY = new Value(0)
-  private translateMaster: Animated.Node<number>
+  private translateMaster = new Value(0)
+  private initialSnapValue = new Value(0)
   private panRef: React.RefObject<PanGestureHandler>
   private master: React.RefObject<PanGestureHandler>
   private tapRef: React.RefObject<TapGestureHandler>
@@ -354,6 +355,8 @@ export default class BottomSheetBehavior extends React.Component<Props, State> {
 
     this.panRef = props.innerGestureHandlerRefs[0]
     this.master = props.innerGestureHandlerRefs[1]
+
+    this.initialSnapValue = new Value(0)
 
     this.tapRef = props.innerGestureHandlerRefs[2]
     this.state = BottomSheetBehavior.getDerivedStateFromProps(props, undefined)
@@ -506,6 +509,21 @@ export default class BottomSheetBehavior extends React.Component<Props, State> {
       ),
       masterOffseted
     )
+  }
+
+  componentDidMount() {
+    const { snapUpOnMount, snapUpSpeed, snapUpDelay } = this.props
+    if (snapUpOnMount) {
+      setTimeout(
+        () =>
+          Animated.timing(this.initialSnapValue, {
+            toValue: 1,
+            duration: snapUpSpeed || 120,
+            easing: Easing.linear,
+          }).start(),
+        snapUpDelay || 100
+      )
+    }
   }
 
   componentDidUpdate(_prevProps: Props, prevState: State) {
@@ -838,24 +856,28 @@ export default class BottomSheetBehavior extends React.Component<Props, State> {
     )
   }
 
-  // call([], () => {
-  //   console.log('HEY')
-  // })
-
-  // function runDecay(
-  //   clock: Animated.Clock,
-  //   value: Animated.Node<number>,
-  //   velocity: Animated.Node<number>,
-  //   wasStartedFromBegin: Animated.Value<number>
-  // ) {
   render() {
-    const { scrollY, scrollDuration, scrollHeight, borderRadius } = this.props
+    const {
+      scrollY,
+      scrollDuration,
+      scrollHeight,
+      borderRadius,
+      snapUpOnMount,
+    } = this.props
+
     const { snapPoints } = this.state
 
     const scrollTranslate = Animated.interpolate(this.popDownValue, {
       inputRange: [0, 1],
       outputRange: [0, scrollHeight],
     })
+
+    const initialSnapTranslate = snapUpOnMount
+      ? Animated.interpolate(this.initialSnapValue, {
+          inputRange: [0, 1],
+          outputRange: [scrollHeight, 0],
+        })
+      : 0
 
     return (
       <React.Fragment>
@@ -867,6 +889,9 @@ export default class BottomSheetBehavior extends React.Component<Props, State> {
             zIndex: 100,
             opacity: cond(this.height, 1, 0),
             transform: [
+              {
+                translateY: initialSnapTranslate,
+              },
               {
                 translateY: this.translateMaster,
               },

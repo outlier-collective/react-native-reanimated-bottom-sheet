@@ -787,7 +787,7 @@ export default class BottomSheetBehavior extends React.Component<Props, State> {
       snapPoints = state.snapPoints
     } else {
       snapPoints = sortedPropsSnapPoints.map(
-        (p) => new Value(sortedPropsSnapPoints[0].val - p.val)
+        p => new Value(sortedPropsSnapPoints[0].val - p.val)
       )
     }
 
@@ -835,7 +835,7 @@ export default class BottomSheetBehavior extends React.Component<Props, State> {
     })
 
     const animatedOpacity = interpolate(pctOpen, {
-      inputRange: [0.1, 1],
+      inputRange: [0.1, 0.975],
       outputRange: [0.7, 0],
       extrapolate: Animated.Extrapolate.CLAMP,
     })

@@ -820,35 +820,38 @@ export default class BottomSheetBehavior extends React.Component<Props, State> {
   }
 
   renderTopView() {
-    const { renderTopView } = this.props
+    const { renderTopView, disabledTopViewTap } = this.props
     const { snapPoints } = this.state
 
-    const pctOpen = divide(
+    const pctClosed = divide(
       this.translateMaster,
       snapPoints[snapPoints.length - 1]
     )
 
-    const animatedWidth = interpolate(pctOpen, {
+    const animatedWidth = interpolate(pctClosed, {
       inputRange: [0.975, 1],
       outputRange: [screenWidth, 0],
       extrapolate: Animated.Extrapolate.CLAMP,
     })
 
-    const animatedOpacity = interpolate(pctOpen, {
+    const animatedOpacity = interpolate(pctClosed, {
       inputRange: [0.1, 0.975],
       outputRange: [0.7, 0],
       extrapolate: Animated.Extrapolate.CLAMP,
     })
+
+    const extraProps = disabledTopViewTap ? { pointerEvents: 'none' } : {}
 
     return (
       <Animated.View
         style={{
           height: '100%',
           opacity: animatedOpacity,
-          width: animatedWidth,
+          width: disabledTopViewTap ? screenWidth : animatedWidth,
           backgroundColor: 'black',
           position: 'absolute',
         }}
+        {...extraProps}
         onLayout={this.handleFullHeader}
       >
         {renderTopView && renderTopView()}
